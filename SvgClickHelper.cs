@@ -123,9 +123,9 @@ namespace BrowseJobs
                            true;
                 });
             }
-            catch (NoSuchElementException)
+            catch (NoSuchElementException ex)
             {
-                Console.WriteLine("NO MORE SHIT TO PROCESS");
+                Console.WriteLine($"NO MORE SHIT TO PROCESS {ex.Message}");
             }
             catch (OpenQA.Selenium.WebDriverException ex)
             {
