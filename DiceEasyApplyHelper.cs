@@ -1,18 +1,21 @@
 ﻿using System;
+using System.IO;
 using System.Text.RegularExpressions;
+using System.Threading;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Support.UI;
+using SeleniumExtras.WaitHelpers;
 
 namespace BrowseJobs;
 
 public class DiceEasyApplyHelper
 {
-    public IWebDriver Driver { get; }
-
     public DiceEasyApplyHelper(IWebDriver driver)
     {
         Driver = driver ?? throw new ArgumentNullException(nameof(driver), "WebDriver instance cannot be null.");
     }
+
+    public IWebDriver Driver { get; }
 
     public bool ClickEasyApplyButton(string jobUrl)
     {
@@ -25,28 +28,29 @@ public class DiceEasyApplyHelper
                 return false;
             }
 
-          
 
             // Extract job-id from the URL
-            string jobId = ExtractJobIdFromUrl(Driver.Url);
+
+            var jobId = ExtractJobIdFromUrl(Driver.Url);
             if (string.IsNullOrEmpty(jobId))
             {
                 Console.WriteLine("Error: Could not extract job-id from URL.");
                 return false;
             }
+
             Console.WriteLine($"Extracted job-id: {jobId}");
 
             // Wait for the page to load
-            WebDriverWait wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(10));
+            var wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(10));
 
             // Locate the Easy Apply button using dynamic CSS selector
-            string cssSelector = $"apply-button-wc[job-id='{jobId}']";
+            var cssSelector = $"apply-button-wc[job-id='{jobId}']";
             IWebElement applyButton;
 
             try
             {
                 // Wait until the button is present and clickable
-                applyButton = wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementToBeClickable(By.CssSelector(cssSelector)));
+                applyButton = wait.Until(ExpectedConditions.ElementToBeClickable(By.CssSelector(cssSelector)));
             }
             catch (WebDriverTimeoutException)
             {
@@ -79,16 +83,22 @@ public class DiceEasyApplyHelper
             }
 
             // Wait briefly to observe the result
-            System.Threading.Thread.Sleep(2000);
+            Thread.Sleep(2000);
+
+    
+            var webButtonHelper = new WebButtonHelper(Driver);
+            webButtonHelper.ClickNextButton();
+
+            File.WriteAllText("page_dump.html", Driver.PageSource);
+
 
             // Check for potential reCAPTCHA
             try
             {
                 var recaptcha = Driver.FindElement(By.ClassName("grecaptcha-badge"));
                 if (recaptcha.Displayed)
-                {
-                    Console.WriteLine("reCAPTCHA detected. Manual intervention may be required to proceed with the application.");
-                }
+                    Console.WriteLine(
+                        "reCAPTCHA detected. Manual intervention may be required to proceed with the application.");
             }
             catch (NoSuchElementException)
             {
@@ -109,17 +119,16 @@ public class DiceEasyApplyHelper
         try
         {
             // Assuming URL format: https://www.dice.com/job-detail/{job-id}
-            Uri uri = new Uri(url);
-            string[] segments = uri.Segments;
+            var uri = new Uri(url);
+            var segments = uri.Segments;
             if (segments.Length > 0)
             {
-                string jobId = segments[^1].TrimEnd('/');
+                var jobId = segments[^1].TrimEnd('/');
                 // Validate job-id format (UUID: 8-4-4-4-12 characters)
-                if (Regex.IsMatch(jobId, @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"))
-                {
-                    return jobId;
-                }
+                if (Regex.IsMatch(jobId,
+                        @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")) return jobId;
             }
+
             return null;
         }
         catch

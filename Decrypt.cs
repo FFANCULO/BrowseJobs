@@ -246,6 +246,7 @@ class Prog2
                     try
                     {
                         ((IJavaScriptExecutor)driver).ExecuteScript("window.open('', '_self').close();");
+                        ((IJavaScriptExecutor)driver).ExecuteScript("window.open('', '_self').close();");
                         Console.WriteLine("✅ Tab closed via JS");
                     }
                     catch (Exception ex)
@@ -280,48 +281,12 @@ class Prog2
     {
         WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(30));
 
-        File.WriteAllText("page_dump.html", driver.PageSource);
 
         string currentUrl = driver.Url;
 
         var diceEasyApplyHelper = new DiceEasyApplyHelper(driver);
         diceEasyApplyHelper.ClickEasyApplyButton(currentUrl);
 
-        var easyApplyButton = wait.Until(d =>
-            d.FindElements(By.CssSelector("button.btn.btn-primary"))
-                .FirstOrDefault(b => b.Displayed && b.Text.Trim().ToLower().Contains("easy apply"))
-        );
-
-        if (easyApplyButton != null)
-            easyApplyButton.Click();
-        else
-            throw new Exception("Easy apply button not found");
-
-
-        // STEP 1: Click "Easy Apply"
-        wait.Until(ExpectedConditions.ElementToBeClickable(
-            By.XPath("//button[contains(text(),'Easy apply')]")
-        )).Click();
-
-        // STEP 2: Wait for Resume upload step to appear (Step 1 of 2)
-        wait.Until(ExpectedConditions.ElementIsVisible(
-            By.XPath("//h2[contains(., 'Resume')]")
-        ));
-
-        // STEP 3: Click "Next"
-        wait.Until(ExpectedConditions.ElementToBeClickable(
-            By.CssSelector(".btn-next")
-        )).Click();
-
-        // STEP 4: Wait for "Review Application" (Step 2 of 2)
-        wait.Until(ExpectedConditions.ElementIsVisible(
-            By.XPath("//h1[contains(., 'Review Application')]")
-        ));
-
-        // STEP 5: Click "Submit"
-        wait.Until(ExpectedConditions.ElementToBeClickable(
-            By.XPath("//button[.//span[text()='Submit']]")
-        )).Click();
     }
 
     public static IEnumerable<Func<object?>> GetApplyButtons(IWebDriver driver)
