@@ -25,8 +25,7 @@ public class DiceEasyApplyHelper
                 return false;
             }
 
-            // Navigate to the job posting URL
-            Driver.Navigate().GoToUrl(jobUrl);
+          
 
             // Extract job-id from the URL
             string jobId = ExtractJobIdFromUrl(Driver.Url);
@@ -112,8 +111,7 @@ public class DiceEasyApplyHelper
             // Assuming URL format: https://www.dice.com/job-detail/{job-id}
             Uri uri = new Uri(url);
             string[] segments = uri.Segments;
-            // The job-id is the last segment, trimmed of any trailing slash
-            if (segments.Length - 1 >= 0 && segments.Length - 1 < segments.Length)
+            if (segments.Length > 0)
             {
                 string jobId = segments[^1].TrimEnd('/');
                 // Validate job-id format (UUID: 8-4-4-4-12 characters)
@@ -122,7 +120,6 @@ public class DiceEasyApplyHelper
                     return jobId;
                 }
             }
-
             return null;
         }
         catch

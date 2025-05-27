@@ -282,6 +282,11 @@ class Prog2
 
         File.WriteAllText("page_dump.html", driver.PageSource);
 
+        string currentUrl = driver.Url;
+
+        var diceEasyApplyHelper = new DiceEasyApplyHelper(driver);
+        diceEasyApplyHelper.ClickEasyApplyButton(currentUrl);
+
         var easyApplyButton = wait.Until(d =>
             d.FindElements(By.CssSelector("button.btn.btn-primary"))
                 .FirstOrDefault(b => b.Displayed && b.Text.Trim().ToLower().Contains("easy apply"))
