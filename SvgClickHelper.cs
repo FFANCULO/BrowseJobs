@@ -30,8 +30,12 @@ namespace BrowseJobs
                 wait.Until(d => (bool)((IJavaScriptExecutor)d).ExecuteScript("return typeof jQuery !== 'undefined';"));
 
                 // Find pagination text before click
+                //var paginationElementBefore = wait.Until(d =>
+                //    d.FindElement(By.XPath($"//section[@aria-label='Page {pageNumber} of 10']")))
                 var paginationElementBefore = wait.Until(d =>
-                    d.FindElement(By.XPath($"//section[@aria-label='Page {pageNumber} of 10']")));
+                    d.FindElement(By.XPath($"//section[contains(@aria-label, 'Page {pageNumber} of')]")));
+
+                ;
                 string paginationTextBefore = paginationElementBefore != null
                     ? ((IJavaScriptExecutor)driver)
                       ?.ExecuteScript("return jQuery(arguments[0]).text();", paginationElementBefore)?.ToString() ??

@@ -1,18 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.SQLite;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using BrowseJobs;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using OpenQA.Selenium;
-using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Edge;
 using OpenQA.Selenium.Support.UI;
+using SeleniumExtras.WaitHelpers;
+
 // ReSharper disable All
 
 public interface ICookieDecryptorStrategy
@@ -45,19 +44,8 @@ public class EdgeCookieDecryptor : ICookieDecryptorStrategy
 
 public class CookieDecryptionHelper
 {
-    private readonly ICookieDecryptorStrategy _strategy;
     private readonly ILogger _logger;
-
-    public class CookieData
-    {
-        public string Name { get; set; }
-        public byte[] EncryptedValue { get; set; }
-        public string HostKey { get; set; }
-        public string Path { get; set; }
-        public bool IsSecure { get; set; }
-        public bool IsHttpOnly { get; set; }
-        public DateTime? Expiry { get; set; }
-    }
+    private readonly ICookieDecryptorStrategy _strategy;
 
     public CookieDecryptionHelper(ICookieDecryptorStrategy strategy, ILogger logger)
     {
@@ -87,7 +75,8 @@ public class CookieDecryptionHelper
         _logger.LogDebug("Opened SQLite connection to temporary DB.");
 
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT name, encrypted_value, host_key, path, is_secure, is_httponly, expires_utc FROM cookies";
+        cmd.CommandText =
+            "SELECT name, encrypted_value, host_key, path, is_secure, is_httponly, expires_utc FROM cookies";
         if (!string.IsNullOrEmpty(domainFilter))
         {
             cmd.CommandText += " WHERE host_key LIKE @hostFilter";
@@ -124,7 +113,8 @@ public class CookieDecryptionHelper
                 Expiry = expiry
             });
 
-            _logger.LogDebug("Extracted cookie: {Name} for domain: {Host}, Expiry: {Expiry}", name, host, expiry?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "None");
+            _logger.LogDebug("Extracted cookie: {Name} for domain: {Host}, Expiry: {Expiry}", name, host,
+                expiry?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "None");
         }
 
         conn.Close();
@@ -157,7 +147,8 @@ public class CookieDecryptionHelper
                 );
                 driver.Manage().Cookies.AddCookie(seleniumCookie);
                 _logger.LogDebug("Set cookie: {Name} for {Host}, Value (Base64): {Value}, Expiry: {Expiry}",
-                    cookie.Name, cookie.HostKey, value.Substring(0, Math.Min(50, value.Length)), cookie.Expiry?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "None");
+                    cookie.Name, cookie.HostKey, value.Substring(0, Math.Min(50, value.Length)),
+                    cookie.Expiry?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "None");
             }
 
             var browserCookies = driver.Manage().Cookies.AllCookies;
@@ -165,7 +156,8 @@ public class CookieDecryptionHelper
             foreach (var browserCookie in browserCookies)
             {
                 _logger.LogDebug("Browser Cookie: {Name} = {Value}, Expiry: {Expiry}",
-                    browserCookie.Name, browserCookie.Value, browserCookie.Expiry?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "None");
+                    browserCookie.Name, browserCookie.Value,
+                    browserCookie.Expiry?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "None");
             }
         }
         catch (Exception ex)
@@ -173,6 +165,17 @@ public class CookieDecryptionHelper
             _logger.LogError(ex, "Failed to set cookies in browser");
             throw new Exception($"Failed to set cookies in browser: {ex.Message}", ex);
         }
+    }
+
+    public class CookieData
+    {
+        public string Name { get; set; }
+        public byte[] EncryptedValue { get; set; }
+        public string HostKey { get; set; }
+        public string Path { get; set; }
+        public bool IsSecure { get; set; }
+        public bool IsHttpOnly { get; set; }
+        public DateTime? Expiry { get; set; }
     }
 }
 
@@ -182,7 +185,9 @@ class Prog2
     {
         try
         {
-            var result = ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView({ block: 'center' });", element);
+            var result =
+                ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView({ block: 'center' });",
+                    element);
             element.Click();
             return result;
         }
@@ -196,18 +201,17 @@ class Prog2
 
     public static void ClickFirstEasyApply(IWebDriver driver)
     {
-        var buttons = driver.FindElements(By.XPath("//span[normalize-space()='Easy Apply']/ancestor::*[self::button or self::a]"));
-        foreach (var button in buttons.TakeLast(2))
+        ReadOnlyCollection<IWebElement> buttons =
+            driver.FindElements(
+                By.XPath("//span[normalize-space()='Easy Apply']/ancestor::*[self::button or self::a]"));
+        foreach (IWebElement button in buttons)
         {
             if (button.Displayed && button.Enabled)
             {
                 SafeClick(driver, button);
                 break;
             }
-
         }
-
-       
     }
 
     public static void DoSomeStuff(IWebDriver driver)
@@ -229,54 +233,97 @@ class Prog2
                 // Switch to the new window
                 foreach (var handle in newHandles)
                 {
-                        driver.SwitchTo().Window(handle);
-                        // GET Handle to EASY APPLY buttons
-                        // GET Job Description verbiage 
-                        // Use Grok and write Cover Letter
+                    driver.SwitchTo().Window(handle);
+                    // GET Handle to EASY APPLY buttons
+                    // GET Job Description verbiage 
+                    // Use Grok and write Cover Letter
 
-                        Thread.Sleep(TimeSpan.FromSeconds(2));
+                    Thread.Sleep(TimeSpan.FromSeconds(2));
 
-                        try
-                        {
-                            ((IJavaScriptExecutor)driver).ExecuteScript("window.open('', '_self').close();");
-                            Console.WriteLine("✅ Tab closed via JS");
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"❌ Failed to close via JS: {ex.Message}");
-                        }
+                    EasyApplyProcess(driver);
 
-                        driver.SwitchTo().Window(originalWindow);
 
+                    try
+                    {
+                        ((IJavaScriptExecutor)driver).ExecuteScript("window.open('', '_self').close();");
+                        Console.WriteLine("✅ Tab closed via JS");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"❌ Failed to close via JS: {ex.Message}");
+                    }
+
+                    driver.SwitchTo().Window(originalWindow);
                 }
-
             }
 
             Thread.Sleep(TimeSpan.FromSeconds(3));
 
             SvgClickHelper.ClickSvgAncestorButton2(driver, (++pageNumber).ToString());
 
+
             Thread.Sleep(TimeSpan.FromSeconds(3));
 
             goto next;
-
         }
         catch (Exception ex)
         {
-            
         }
         finally
         {
             Thread.Sleep(TimeSpan.FromSeconds(5));
             driver.SwitchTo().Window(originalWindow);
         }
+    }
+
+    private static void EasyApplyProcess(IWebDriver driver)
+    {
+        WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(30));
+
+        File.WriteAllText("page_dump.html", driver.PageSource);
+
+        var easyApplyButton = wait.Until(d =>
+            d.FindElements(By.CssSelector("button.btn.btn-primary"))
+                .FirstOrDefault(b => b.Displayed && b.Text.Trim().ToLower().Contains("easy apply"))
+        );
+
+        if (easyApplyButton != null)
+            easyApplyButton.Click();
+        else
+            throw new Exception("Easy apply button not found");
 
 
+        // STEP 1: Click "Easy Apply"
+        wait.Until(ExpectedConditions.ElementToBeClickable(
+            By.XPath("//button[contains(text(),'Easy apply')]")
+        )).Click();
+
+        // STEP 2: Wait for Resume upload step to appear (Step 1 of 2)
+        wait.Until(ExpectedConditions.ElementIsVisible(
+            By.XPath("//h2[contains(., 'Resume')]")
+        ));
+
+        // STEP 3: Click "Next"
+        wait.Until(ExpectedConditions.ElementToBeClickable(
+            By.CssSelector(".btn-next")
+        )).Click();
+
+        // STEP 4: Wait for "Review Application" (Step 2 of 2)
+        wait.Until(ExpectedConditions.ElementIsVisible(
+            By.XPath("//h1[contains(., 'Review Application')]")
+        ));
+
+        // STEP 5: Click "Submit"
+        wait.Until(ExpectedConditions.ElementToBeClickable(
+            By.XPath("//button[.//span[text()='Submit']]")
+        )).Click();
     }
 
     public static IEnumerable<Func<object?>> GetApplyButtons(IWebDriver driver)
     {
-        var buttons = driver.FindElements(By.XPath("//span[normalize-space()='Easy Apply']/ancestor::*[self::button or self::a]"));
+        var buttons =
+            driver.FindElements(
+                By.XPath("//span[normalize-space()='Easy Apply']/ancestor::*[self::button or self::a]"));
         foreach (var button in buttons)
         {
             if (button.Displayed && button.Enabled)
@@ -331,15 +378,8 @@ class Prog2
 
             ClickFirstEasyApply(driver);
 
-            
 
-
-
-
-
-            
-                driver.Quit();
-            
+            driver.Quit();
         }
         catch (Exception ex)
         {
