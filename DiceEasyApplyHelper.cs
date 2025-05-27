@@ -89,7 +89,15 @@ public class DiceEasyApplyHelper
             var webButtonHelper = new WebButtonHelper(Driver);
             webButtonHelper.ClickNextButton();
 
-            File.WriteAllText("page_dump.html", Driver.PageSource);
+            File.WriteAllText("page_dump1.html", Driver.PageSource);
+
+            Thread.Sleep(2000);
+
+
+            var webButtonHelper2 = new WebButtonHelper2(Driver);
+            webButtonHelper2.ClickSubmitButton();
+
+            Thread.Sleep(2000);
 
 
             // Check for potential reCAPTCHA

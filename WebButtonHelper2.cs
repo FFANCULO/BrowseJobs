@@ -9,35 +9,19 @@ namespace BrowseJobs
 {
     public class WebButtonHelper2
     {
-        private readonly IWebDriver _driver;
+        public IWebDriver Driver { get; }
         private readonly WebDriverWait _wait;
         private readonly string _logFilePath;
 
-        /// <summary>
-        /// Initializes a new instance of the WebButtonHelper class.
-        /// </summary>
-        /// <param name="driver">The Selenium WebDriver instance.</param>
-        /// <param name="timeoutInSeconds">Timeout for waiting operations in seconds (default is 15).</param>
-        /// <param name="logFilePath">Path for logging (optional, defaults to console if null).</param>
-        public WebButtonHelper2(IWebDriver driver, int timeoutInSeconds = 15, string logFilePath = null)
+        public WebButtonHelper2(IWebDriver driver, int timeoutInSeconds = 20, string logFilePath = null)
         {
-            _driver = driver ?? throw new ArgumentNullException(nameof(driver));
-            _wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(timeoutInSeconds));
+            Driver = driver ?? throw new ArgumentNullException(nameof(driver));
+            _wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(timeoutInSeconds));
             _logFilePath = logFilePath;
         }
 
-        /// <summary>
-        /// Clicks a button with multiple selector fallbacks, retry logic, and form validation.
-        /// Supports both CSS and XPath selectors for flexibility.
-        /// </summary>
-        /// <param name="primarySelector">Primary CSS or XPath selector for the button.</param>
-        /// <param name="fallbackSelectors">Fallback CSS or XPath selectors if primary fails.</param>
-        /// <param name="isXPath">Whether the selectors are XPath (true) or CSS (false).</param>
-        /// <param name="retryCount">Number of retry attempts for stale elements.</param>
-        /// <param name="validateForm">Whether to check form validation before clicking.</param>
-        /// <returns>True if the click was successful, false otherwise.</returns>
-        public bool ClickButton(
-            string primarySelector = "button[type='submit']",
+        public bool ClickSubmitButton(
+            string primarySelector = "button.seds-button-primary.btn-next",
             string[] fallbackSelectors = null,
             bool isXPath = false,
             int retryCount = 3,
@@ -52,31 +36,24 @@ namespace BrowseJobs
                 {
                     try
                     {
-                        // Wait until the button is visible and clickable
                         var by = isXPath ? By.XPath(selector) : By.CssSelector(selector);
                         var button = _wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementToBeClickable(by));
 
-                        // Validate button state
                         if (button.Enabled && button.Displayed)
                         {
-                            // Check for reCAPTCHA
                             if (IsRecaptchaPresent())
                             {
-                                Log("Warning: reCAPTCHA detected. Automated click may be blocked.");
-                                return false;
+                                Log("Warning: reCAPTCHA detected. Pausing for manual completion. Press Enter when done.");
+                                Console.ReadLine();
                             }
 
-                            // Validate form if required
                             if (validateForm && !IsFormValid())
                             {
                                 Log("Form validation failed. Required fields may be missing.");
                                 return false;
                             }
 
-                            // Scroll to the button
-                            ((IJavaScriptExecutor)_driver).ExecuteScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", button);
-
-                            // Click the button
+                            ((IJavaScriptExecutor)Driver).ExecuteScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", button);
                             button.Click();
                             Log($"Successfully clicked the button using selector: {selector}");
                             return true;
@@ -91,17 +68,20 @@ namespace BrowseJobs
                     {
                         Log($"Stale element detected for selector '{selector}'. Retrying...");
                         attempts++;
-                        Thread.Sleep(1000); // Brief pause before retry
+                        Thread.Sleep(1000);
                         continue;
                     }
                     catch (WebDriverTimeoutException)
                     {
                         Log($"Timeout: Button with selector '{selector}' not found or not clickable.");
+                        CaptureScreenshot($"timeout_{selector.Replace(":", "_").Replace("/", "_")}");
+                        LogDomState();
                         continue;
                     }
                     catch (WebDriverException ex)
                     {
                         Log($"Error clicking button with selector '{selector}': {ex.Message}");
+                        CaptureScreenshot($"error_{selector.Replace(":", "_").Replace("/", "_")}");
                         continue;
                     }
                 }
@@ -118,13 +98,7 @@ namespace BrowseJobs
             return false;
         }
 
-        /// <summary>
-        /// Checks if the button is present and clickable.
-        /// </summary>
-        /// <param name="selector">CSS or XPath selector for the button.</param>
-        /// <param name="isXPath">Whether the selector is XPath (true) or CSS (false).</param>
-        /// <returns>True if the button is present and clickable, false otherwise.</returns>
-        public bool IsButtonClickable(string selector = "button[type='submit']", bool isXPath = false)
+        public bool IsButtonClickable(string selector = "button.seds-button-primary.btn-next", bool isXPath = false)
         {
             try
             {
@@ -141,20 +115,14 @@ namespace BrowseJobs
             }
         }
 
-        /// <summary>
-        /// Checks if reCAPTCHA is present on the page.
-        /// </summary>
-        /// <returns>True if reCAPTCHA badge is detected, false otherwise.</returns>
         private bool IsRecaptchaPresent()
         {
             try
             {
-                var recaptcha = _driver.FindElements(By.ClassName("grecaptcha-badge"));
-                bool isPresent = recaptcha.Any() && recaptcha.First().Displayed;
+                var recaptcha = Driver.FindElements(By.CssSelector("div.grecaptcha-badge"));
+                bool isPresent = recaptcha.Any() && recaptcha.FirstOrDefault()?.Displayed == true;
                 if (isPresent)
-                {
                     Log("reCAPTCHA badge detected on the page.");
-                }
                 return isPresent;
             }
             catch
@@ -163,47 +131,72 @@ namespace BrowseJobs
             }
         }
 
-        /// <summary>
-        /// Validates if the form has no visible validation errors (e.g., required fields).
-        /// </summary>
-        /// <returns>True if the form appears valid, false otherwise.</returns>
         private bool IsFormValid()
         {
             try
             {
-                // Check for required fields that are empty
-                var requiredFields = _driver.FindElements(By.CssSelector("input[required], textarea[required], select[required]"));
+                var requiredFields = Driver.FindElements(By.CssSelector("input[required], textarea[required], select[required]"));
                 foreach (var field in requiredFields)
                 {
                     if (field.Displayed && string.IsNullOrEmpty(field.GetAttribute("value")))
                     {
-                        Log($"Required field '{field.GetAttribute("name") ?? "unknown"}' is empty.");
+                        Log($"Input field '{field.GetAttribute("name") ?? "unknown"}' is empty.");
                         return false;
                     }
                 }
 
-                // Check for visible error messages
-                var errorMessages = _driver.FindElements(By.CssSelector(".seds-inline-message.error, .error, [class*='error']"));
+                var errorMessages = Driver.FindElements(By.CssSelector(".seds-inline-message.error, .error, [class*='error']"));
                 if (errorMessages.Any(e => e.Displayed))
                 {
                     Log("Form contains visible error messages.");
                     return false;
                 }
 
-                Log("Form appears valid with no empty required fields or visible errors.");
+                Log("Form submission ready.");
                 return true;
             }
             catch (Exception ex)
             {
-                Log($"Error validating form: {ex.Message}");
+                Log($"Error validating form submission: {ex.Message}");
                 return false;
             }
         }
 
-        /// <summary>
-        /// Logs a message to the console and optionally to a file.
-        /// </summary>
-        /// <param name="message">The message to log.</param>
+        private void LogDomState()
+        {
+            try
+            {
+                var buttons = Driver.FindElements(By.XPath("//button"));
+                Log("Listing all visible buttons in DOM:");
+                foreach (var button in buttons)
+                {
+                    if (button.Displayed)
+                    {
+                        Log($"Button: Text='{button.Text}', Classes='{button.GetAttribute("class")}', Type='{button.GetAttribute("type")}'");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"Error logging DOM state: {ex.Message}");
+            }
+        }
+
+        private void CaptureScreenshot(string name)
+        {
+            try
+            {
+                var screenshot = ((ITakesScreenshot)Driver).GetScreenshot();
+                var fileName = $"screenshot_{name}_{DateTime.Now:yyyyMMdd_HHmmss}.png";
+                screenshot.SaveAsFile(fileName);
+                Log($"Screenshot saved: {fileName}");
+            }
+            catch (Exception ex)
+            {
+                Log($"Error capturing screenshot: {ex.Message}");
+            }
+        }
+
         private void Log(string message)
         {
             string logMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";

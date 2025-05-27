@@ -222,7 +222,7 @@ class Prog2
         {
             next:
 
-            foreach (var func in GetApplyButtons(driver).TakeLast(2))
+            foreach (var func in GetApplyButtons(driver))
             {
                 var f = func();
                 // Wait for a new window to appear
