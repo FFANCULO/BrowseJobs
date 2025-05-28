@@ -9,7 +9,7 @@ namespace BrowseJobs;
 public class ProtonVpnWslHelper
 {
     private string _currentServer = null;
-    private readonly List<string> _states;
+    private readonly List<string?> _states;
     private int _cycleCount = 0;
     private const int CommandTimeoutMs = 30000; // 30 seconds timeout for WSL commands
     private const int MaxConnectionRetries = 3;
@@ -19,14 +19,14 @@ public class ProtonVpnWslHelper
     /// </summary>
     /// <param name="statesToCycle">List of US state abbreviations (e.g., CA, NY).</param>
     /// <exception cref="ArgumentException">Thrown if statesToCycle is empty or contains invalid abbreviations.</exception>
-    public ProtonVpnWslHelper(IEnumerable<string> statesToCycle)
+    public ProtonVpnWslHelper(IList<string> statesToCycle)
     {
-        if (statesToCycle == null || !statesToCycle.Any())
+        if (statesToCycle == null || !statesToCycle.Any() )
             throw new ArgumentException("States list cannot be null or empty.", nameof(statesToCycle));
 
         _states = statesToCycle
             .Select(s => s?.Trim().ToUpper())
-            .Where(s => IsValidStateAbbreviation(s))
+            .Where(IsValidStateAbbreviation)
             .Distinct()
             .ToList();
 
@@ -236,7 +236,7 @@ public class ProtonVpnWslHelper
     /// <summary>
     /// Validates a US state abbreviation (two-letter code).
     /// </summary>
-    private static bool IsValidStateAbbreviation(string state)
+    private static bool IsValidStateAbbreviation(string? state)
     {
         return !string.IsNullOrWhiteSpace(state) && Regex.IsMatch(state, @"^[A-Z]{2}$");
     }
