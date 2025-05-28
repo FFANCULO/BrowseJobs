@@ -319,6 +319,20 @@ class Prog2
             var options = new EdgeOptions();
             options.AddArgument("user-data-dir=C:\\Users\\peter\\AppData\\Local\\Microsoft\\Edge\\User Data");
             options.AddArgument("profile-directory=Profile 2");
+
+            // PCJ
+            options.AddArgument("--no-sandbox");
+            options.AddArgument("--disable-dev-shm-usage");
+            options.AddArgument("--disable-gpu");
+            options.AddArgument("--window-size=1920,1080");
+            options.AddArgument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+
+            // Additional options for better compatibility
+            options.AddArgument("--disable-blink-features=AutomationControlled");
+            options.AddExcludedArgument("enable-automation");
+            options.AddAdditionalOption("useAutomationExtension", false);
+
+
             IWebDriver driver = new EdgeDriver(options);
             driver.Navigate().GoToUrl("https://www.dice.com");
             logger.LogInformation($"Page Title: {driver.Title}");

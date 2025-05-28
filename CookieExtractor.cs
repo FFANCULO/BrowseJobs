@@ -1,23 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
 using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
 using SQLitePCL;
 
-public class EdgeCookie
-{
-    public string Name { get; set; }
-    public string Value { get; set; }
-    public string Domain { get; set; }
-    public string Path { get; set; }
-    public bool Secure { get; set; }
-    public bool HttpOnly { get; set; }
-}
+#pragma warning disable CA1050 // Declare types in namespaces
+namespace BrowseJobs;
 
-public static class CookieExtractor
+public record CookieExtractor
+#pragma warning restore CA1050 // Declare types in namespaces
 {
     public static List<EdgeCookie> ExtractCookies(string browser = "edge", string filterDomain = null)
     {
