@@ -321,16 +321,16 @@ class Prog2
             options.AddArgument("profile-directory=Profile 2");
 
             // PCJ
-            options.AddArgument("--no-sandbox");
-            options.AddArgument("--disable-dev-shm-usage");
-            options.AddArgument("--disable-gpu");
-            options.AddArgument("--window-size=1920,1080");
+            //options.AddArgument("--no-sandbox");
+            //options.AddArgument("--disable-dev-shm-usage");
+            //options.AddArgument("--disable-gpu");
+            //options.AddArgument("--window-size=1920,1080");
             options.AddArgument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 
-            // Additional options for better compatibility
-            options.AddArgument("--disable-blink-features=AutomationControlled");
-            options.AddExcludedArgument("enable-automation");
-            options.AddAdditionalOption("useAutomationExtension", false);
+            //// Additional options for better compatibility
+            //options.AddArgument("--disable-blink-features=AutomationControlled");
+            //options.AddExcludedArgument("enable-automation");
+            //options.AddAdditionalOption("useAutomationExtension", false);
 
 
             IWebDriver driver = new EdgeDriver(options);
