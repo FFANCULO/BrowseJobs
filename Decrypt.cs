@@ -278,7 +278,25 @@ class Prog2
     }
 
     private static void EasyApplyProcess(IWebDriver driver)
-    {
+    { 
+        // Begin Shizer
+        var wait1 = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
+
+        // Click the toggle button
+        var toggleButton = wait1.Until(d => d.FindElement(By.Id("descriptionToggle")));
+        toggleButton.Click();
+
+        // Wait for the description container to load
+        var desc = wait1.Until(d => d.FindElement(By.CssSelector("div[data-testid='jobDescriptionHtml']")));
+
+        // Extract visible plain text
+        string jobText = desc.Text;
+        Console.WriteLine("----- JOB DESCRIPTION -----\n");
+        Console.WriteLine(jobText);
+
+
+        // END Shizer
+
         WebDriverWait wait = new WebDriverWait(driver, TimeSpan.FromSeconds(30));
 
 

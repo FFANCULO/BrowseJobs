@@ -21,7 +21,7 @@ namespace BrowseJobs
         public string ApiUrl { get; }
         public HttpClient Client { get; }
 
-        public GrokApiClient(string apiKey, string apiUrl = "https://api.x.ai/v1/grok/complete")
+        public GrokApiClient(string apiKey = "xai-lb1ApQ4JOd0iI15J5xeCFa5pCNFhDr15A36gWbW7CCHV1n5gE1YLAjq0CFYnT7eDvqArZjUuZrW9CVI1", string apiUrl = "https://api.x.ai/v1/grok/complete")
         {
             ApiKey = apiKey ?? throw new ArgumentNullException(nameof(apiKey));
             ApiUrl = apiUrl ?? throw new ArgumentNullException(nameof(apiUrl));
@@ -105,7 +105,7 @@ Job Requirements:
             string response = await _apiClient.CallApiAsync(prompt);
             try
             {
-                _keywords = JsonConvert.DeserializeObject<List<string>>(response);
+                _keywords = JsonConvert.DeserializeObject<List<string>>(response) ?? new List<string>();
             }
             catch (JsonException)
             {
