@@ -10,7 +10,7 @@ namespace BrowseJobs
     {
         public static async Task Main(string[] args)
         {
-            var result = await xAI.CallGrok();
+            var result = await XAi.CallGrok();
 
             // Shit.DoIt();
              Prog2.DoIt();
