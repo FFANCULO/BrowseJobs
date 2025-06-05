@@ -1,6 +1,7 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 using System.Threading.Tasks;
+using PuppeteerSharp;
 
 namespace BrowseJobs
 {
@@ -11,8 +12,9 @@ namespace BrowseJobs
     {
         public static async Task Main(string[] args)
         {
+            Browser launchAndConnectAsync = await EdgeDevToolsLauncher.LaunchAndConnectAsync();
 
-            EncryptedCookieHelper.ExtractDecryptedCookies("EncryptedCookieHelper")
+            await CookieBridge.LaunchEdgeWithCookiesAsync("https://www.dice.com/");
 
             //var driver = EdgeDriverFactory.LaunchWithAuthenticatedProxy(
             //    "198.23.239.134", 6540, "ifabpxsh", "ceepwsj6156a"
