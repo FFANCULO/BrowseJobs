@@ -1,221 +1,190 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net.Http;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
-namespace BrowseJobs
+namespace BrowseJobs;
+
+// Interface for Grok API interaction
+
+// Concrete implementation of Grok API client
+
+// Builder for constructing the modified resume
+public class ResumeBuilder
 {
-    // Interface for Grok API interaction
-    public interface IGrokApiClient
+    private readonly IGrokApiClient _apiClient;
+    private string _jobRequirements;
+    private List<string> _keywords;
+    private string _modifiedResume;
+    private string _resumeContent;
+
+    public ResumeBuilder(IGrokApiClient apiClient)
     {
-        Task<string> CallApiAsync(string prompt);
+        _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
+        _keywords = new List<string>();
     }
 
-    // Concrete implementation of Grok API client
-    public class GrokApiClient : IGrokApiClient
+    public ResumeBuilder WithJobRequirements(string jobRequirements)
     {
-        public string ApiKey { get; }
-        public string ApiUrl { get; }
-        public HttpClient Client { get; }
+        _jobRequirements = jobRequirements ?? throw new ArgumentNullException(nameof(jobRequirements));
+        return this;
+    }
 
-        public GrokApiClient(string apiKey = "xai-lb1ApQ4JOd0iI15J5xeCFa5pCNFhDr15A36gWbW7CCHV1n5gE1YLAjq0CFYnT7eDvqArZjUuZrW9CVI1", string apiUrl = "https://api.x.ai/v1/grok/complete")
+    public ResumeBuilder WithResume(string resumeFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(resumeFilePath))
+            throw new ArgumentNullException(nameof(resumeFilePath), "Resume file path cannot be null or empty.");
+        if (!File.Exists(resumeFilePath))
+            throw new FileNotFoundException("Resume file not found.", resumeFilePath);
+
+        _resumeContent = File.ReadAllText(resumeFilePath, Encoding.UTF8);
+        return this;
+    }
+
+    public static async Task<List<string>> ExtractFromFileAsync(string filePath)
+    {
+        byte[] jsonBytes = await File.ReadAllBytesAsync(filePath);
+        return ExtractFromBytes(jsonBytes);
+    }
+
+    public static List<string> ExtractFromBytes(ReadOnlySpan<byte> utf8Json)
+    {
+        var reader = new Utf8JsonReader(utf8Json);
+
+        string? contentRaw = null;
+
+        while (reader.Read())
         {
-            ApiKey = apiKey ?? throw new ArgumentNullException(nameof(apiKey));
-            ApiUrl = apiUrl ?? throw new ArgumentNullException(nameof(apiUrl));
-            Client = new HttpClient();
+            if (reader.TokenType == JsonTokenType.PropertyName && reader.ValueTextEquals("content"))
+            {
+                reader.Read(); // to string
+                contentRaw = reader.GetString();
+                break;
+            }
         }
 
-        public async Task<string> CallApiAsync(string prompt)
+        if (string.IsNullOrWhiteSpace(contentRaw))
+            throw new Exception("content not found");
+
+        // Remove markdown fences
+        if (contentRaw.StartsWith("```"))
         {
-            var requestBody = new
+            contentRaw = contentRaw
+                .Replace("```json", "")
+                .Replace("```", "")
+                .Trim();
+        }
+
+        return JsonSerializer.Deserialize<List<string>>(contentRaw) ?? new List<string>();
+    }
+
+
+    public async Task<ResumeBuilder> ExtractKeywordsAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_jobRequirements))
+            throw new InvalidOperationException("Job requirements must be set before extracting keywords.");
+
+        var prompt = $@"
+            Analyze the following job requirements and extract key skills, qualifications, and job titles as a list of keywords. Focus on terms critical for ATS compliance, such as specific technologies, degrees, and experience levels. Return the keywords as a JSON list.
+
+            Job Requirements:
+            {_jobRequirements}
+            ";
+
+        var response = await _apiClient.CallApiAsync(prompt);
+        try
+        {
+            _keywords = JsonConvert.DeserializeObject<List<string>>(response) ?? new List<string>();
+        }
+        catch (Exception)
+        {
+            Console.WriteLine("Failed to parse keywords. Using fallback list.");
+            _keywords = new List<string>
             {
-                prompt,
-                max_tokens = 1000,
-                temperature = 0.7
+                "Software Engineer", "Python", "Django", "JavaScript", "APIs", "unit testing", "code reviews",
+                "Bachelor’s degree", "3+ years experience", "problem-solving"
             };
-
-            var content = new StringContent(JsonConvert.SerializeObject(requestBody), Encoding.UTF8, "application/json");
-            Client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ApiKey);
-
-            try
-            {
-                var response = await Client.PostAsync(ApiUrl, content);
-                response.EnsureSuccessStatusCode();
-                var responseBody = await response.Content.ReadAsStringAsync();
-                var json = JsonConvert.DeserializeObject<dynamic>(responseBody);
-                return json?.choices[0].text.ToString() ?? new Exception("Fucked");
-            }
-            catch (HttpRequestException ex)
-            {
-                Console.WriteLine($"API call failed: {ex.Message}");
-                return string.Empty;
-            }
         }
+
+        return this;
     }
 
-    // Builder for constructing the modified resume
-    public class ResumeBuilder
+    public async Task<ResumeBuilder> ModifyResumeAsync()
     {
-        private readonly IGrokApiClient _apiClient;
-        private string _jobRequirements;
-        private string _resumeFilePath;
-        private string _resumeContent;
-        private List<string> _keywords;
-        private string _modifiedResume;
+        if (string.IsNullOrWhiteSpace(_resumeContent))
+            throw new InvalidOperationException("Resume content must be set before modification.");
+        if (_keywords == null || _keywords.Count == 0)
+            throw new InvalidOperationException("Keywords must be extracted before modifying resume.");
 
-        public ResumeBuilder(IGrokApiClient apiClient)
-        {
-            _apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
-            _keywords = new List<string>();
-        }
+        var prompt = $@"
+            You are a professional resume writer specializing in ATS-compliant resumes. Rewrite the provided resume to align with the job requirements, incorporating the specified keywords naturally. Ensure the resume is concise, uses a chronological format, and includes standard headings (Contact Information, Summary, Experience, Education, Skills). Avoid graphics, tables, or complex formatting. Use action verbs and quantify achievements where possible.
 
-        public ResumeBuilder WithJobRequirements(string jobRequirements)
-        {
-            _jobRequirements = jobRequirements ?? throw new ArgumentNullException(nameof(jobRequirements));
-            return this;
-        }
+            Job Requirements:
+            {_jobRequirements}
 
-        public ResumeBuilder WithResume(string resumeFilePath)
-        {
-            if (string.IsNullOrWhiteSpace(resumeFilePath))
-                throw new ArgumentNullException(nameof(resumeFilePath), "Resume file path cannot be null or empty.");
-            if (!File.Exists(resumeFilePath))
-                throw new FileNotFoundException("Resume file not found.", resumeFilePath);
+            Keywords to include:
+            {string.Join(", ", _keywords)}
 
-            _resumeFilePath = resumeFilePath;
-            _resumeContent = File.ReadAllText(resumeFilePath, Encoding.UTF8);
-            return this;
-        }
+            Original Resume:
+            {_resumeContent}
 
-        public async Task<ResumeBuilder> ExtractKeywordsAsync()
-        {
-            if (string.IsNullOrWhiteSpace(_jobRequirements))
-                throw new InvalidOperationException("Job requirements must be set before extracting keywords.");
+            Return the modified resume as plain text with clear section headings.
+            ";
 
-            string prompt = $@"
-Analyze the following job requirements and extract key skills, qualifications, and job titles as a list of keywords. Focus on terms critical for ATS compliance, such as specific technologies, degrees, and experience levels. Return the keywords as a JSON list.
+        _modifiedResume = await _apiClient.CallApiAsync(prompt);
+        if (string.IsNullOrEmpty(_modifiedResume)) throw new InvalidOperationException("Failed to modify resume.");
 
-Job Requirements:
-{_jobRequirements}
-";
-
-            string response = await _apiClient.CallApiAsync(prompt);
-            try
-            {
-                _keywords = JsonConvert.DeserializeObject<List<string>>(response) ?? new List<string>();
-            }
-            catch (JsonException)
-            {
-                Console.WriteLine("Failed to parse keywords. Using fallback list.");
-                _keywords = new List<string> { "Software Engineer", "Python", "Django", "JavaScript", "APIs", "unit testing", "code reviews", "Bachelor’s degree", "3+ years experience", "problem-solving" };
-            }
-
-            return this;
-        }
-
-        public async Task<ResumeBuilder> ModifyResumeAsync()
-        {
-            if (string.IsNullOrWhiteSpace(_resumeContent))
-                throw new InvalidOperationException("Resume content must be set before modification.");
-            if (_keywords == null || _keywords.Count == 0)
-                throw new InvalidOperationException("Keywords must be extracted before modifying resume.");
-
-            string prompt = $@"
-You are a professional resume writer specializing in ATS-compliant resumes. Rewrite the provided resume to align with the job requirements, incorporating the specified keywords naturally. Ensure the resume is concise, uses a chronological format, and includes standard headings (Contact Information, Summary, Experience, Education, Skills). Avoid graphics, tables, or complex formatting. Use action verbs and quantify achievements where possible.
-
-Job Requirements:
-{_jobRequirements}
-
-Keywords to include:
-{string.Join(", ", _keywords)}
-
-Original Resume:
-{_resumeContent}
-
-Return the modified resume as plain text with clear section headings.
-";
-
-            _modifiedResume = await _apiClient.CallApiAsync(prompt);
-            if (string.IsNullOrEmpty(_modifiedResume))
-            {
-                throw new InvalidOperationException("Failed to modify resume.");
-            }
-
-            return this;
-        }
-
-        public ResumeBuilder SaveToFile(string filePath)
-        {
-            if (string.IsNullOrEmpty(_modifiedResume))
-                throw new InvalidOperationException("Resume must be modified before saving.");
-            if (string.IsNullOrEmpty(filePath))
-                throw new ArgumentNullException(nameof(filePath));
-
-            File.WriteAllText(filePath, _modifiedResume, Encoding.UTF8);
-            Console.WriteLine($"Modified resume saved to {filePath}");
-            return this;
-        }
-
-        public string Build()
-        {
-            if (string.IsNullOrEmpty(_modifiedResume))
-                throw new InvalidOperationException("Resume must be modified before building.");
-            return _modifiedResume;
-        }
+        return this;
     }
 
-    // Helper class using the Builder
-    public static class ResumeModifierHelper
+    public ResumeBuilder SaveToFile(string filePath)
     {
-        public static async Task<string> ModifyResumeForJob(IGrokApiClient apiClient, string jobRequirements, string resumeFilePath, string outputFilePath = null)
-        {
-            if (string.IsNullOrWhiteSpace(jobRequirements))
-                throw new ArgumentNullException(nameof(jobRequirements), "Job requirements cannot be null or empty.");
-            if (string.IsNullOrWhiteSpace(resumeFilePath))
-                throw new ArgumentNullException(nameof(resumeFilePath), "Resume file path cannot be null or empty.");
-            if (apiClient == null)
-                throw new ArgumentNullException(nameof(apiClient), "API client cannot be null.");
+        if (string.IsNullOrEmpty(_modifiedResume))
+            throw new InvalidOperationException("Resume must be modified before saving.");
+        if (string.IsNullOrEmpty(filePath))
+            throw new ArgumentNullException(nameof(filePath));
 
-            var builder = new ResumeBuilder(apiClient)
-                .WithJobRequirements(jobRequirements)
-                .WithResume(resumeFilePath);
-
-            await builder.ExtractKeywordsAsync();
-            await builder.ModifyResumeAsync();
-
-            if (!string.IsNullOrEmpty(outputFilePath))
-            {
-                builder.SaveToFile(outputFilePath);
-            }
-
-            return builder.Build();
-        }
+        File.WriteAllText(filePath, _modifiedResume, Encoding.UTF8);
+        Console.WriteLine($"Modified resume saved to {filePath}");
+        return this;
     }
 
-    class Program7
+    public string Build()
     {
-        static async Task Main7(string[] args)
-        {
-            try
-            {
-                // Configure API client
-                string apiKey = "your_grok_api_key_here"; // Replace with your xAI Grok API key
-                IGrokApiClient apiClient = new GrokApiClient(apiKey);
+        if (string.IsNullOrEmpty(_modifiedResume))
+            throw new InvalidOperationException("Resume must be modified before building.");
+        return _modifiedResume;
+    }
+}
 
-                // Example inputs
-                string jobRequirements = @"
+// Helper class using the Builder
+
+internal class Program7
+{
+    private static async Task Main7(string[] args)
+    {
+        try
+        {
+            // Configure API client
+            var apiKey = "your_grok_api_key_here"; // Replace with your xAI Grok API key
+            IGrokApiClient apiClient = new GrokApiClient(apiKey);
+
+            // Example inputs
+            var jobRequirements = @"
 Job Title: Software Engineer
 Responsibilities: Develop web applications using Python, Django, and JavaScript. Collaborate with cross-functional teams to design APIs. Ensure code quality through unit testing and code reviews.
 Requirements: Bachelor’s degree in Computer Science, 3+ years of experience with Python and Django, proficiency in JavaScript, and strong problem-solving skills.
 ";
-                string resumeFilePath = "resume.txt"; // Ensure this file exists or update path
-                string outputFilePath = "modified_resume.txt";
+            var resumeFilePath = "resume.txt"; // Ensure this file exists or update path
+            var outputFilePath = "modified_resume.txt";
 
-                // Create a sample resume file for demonstration (remove in production)
-                await File.WriteAllTextAsync(resumeFilePath, @"
+            // Create a sample resume file for demonstration (remove in production)
+            await File.WriteAllTextAsync(resumeFilePath, @"
 Name: John Doe
 Contact: johndoe@email.com | 555-123-4567 | New York, NY
 Summary: Experienced developer with a passion for building applications.
@@ -228,17 +197,18 @@ Education:
 Skills: Python, Flask, SQL, teamwork
 ");
 
-                // Call the helper with the Builder
-                string modifiedResume = await ResumeModifierHelper.ModifyResumeForJob(apiClient, jobRequirements, resumeFilePath, outputFilePath);
+            // Call the helper with the Builder
+            var modifiedResume =
+                await ResumeModifierHelper.ModifyResumeForJob(apiClient, jobRequirements, resumeFilePath,
+                    outputFilePath);
 
-                // Display result
-                Console.WriteLine("\nModified Resume:\n");
-                Console.WriteLine(modifiedResume);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error: {ex.Message}");
-            }
+            // Display result
+            Console.WriteLine("\nModified Resume:\n");
+            Console.WriteLine(modifiedResume);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
         }
     }
 }

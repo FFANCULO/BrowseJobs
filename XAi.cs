@@ -2,15 +2,27 @@
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
+using Microsoft.Extensions.Configuration;
 
 namespace BrowseJobs;
 
 class XAi
 {
-    public static async Task<string> CallGrok()
+    public static async Task<string> CallGrok(string prompt)
     {
-        var apiKey = "xai-lb1ApQ4JOd0iI15J5xeCFa5pCNFhDr15A36gWbW7CCHV1n5gE1YLAjq0CFYnT7eDvqArZjUuZrW9CVI1";
+
+        var config = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json")
+            .Build();
+
+        string apiKeyConfig = config["MySettings:ApiKey"] ?? throw new InvalidOperationException("MySettings:ApiKey cannot be found");
+        Console.WriteLine($"API Key: {apiKeyConfig}");
+
+
+
+        var apiKey = "xai-Spjy8ZfUf3RKB9TaIfu1kOD0se41eUGlZOvH5q3I3eoeFLHpvqBUDBlH0D2yhAb1QtjXazKn6BiorLar";
 
         var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
@@ -22,7 +34,7 @@ class XAi
             temperature = 0.7,
             messages = new[]
             {
-                new { role = "user", content = "What is the meaning of life, the universe, and everything?" }
+                new { role = "user", content = prompt }
             }
         };
 
