@@ -13,22 +13,23 @@ public static class EdgeDevToolsLauncher
     private static readonly string DevToolsUrl = $"http://localhost:{DebugPort}";
     private static string? _tempUserDataDir;
 
-    public static async Task<Browser> LaunchAndConnectAsync()
+    public static async Task<(Browser browser, Process? process)> LaunchAndConnectAsync()
     {
-        StartEdgeWithDevTools();
+        Process? process = StartEdgeWithDevTools();
 
         Console.WriteLine("[*] Waiting for Edge DevTools port...");
         await WaitForDevToolsAsync();
 
         Console.WriteLine("[*] Connecting PuppeteerSharp...");
-        return (Browser)await Puppeteer.ConnectAsync(new ConnectOptions
+        var browser = (Browser)await Puppeteer.ConnectAsync(new ConnectOptions
         {
             BrowserURL = "http://localhost:9222"
         });
 
+        return (browser, process);
     }
 
-    private static void StartEdgeWithDevTools()
+    private static Process? StartEdgeWithDevTools()
     {
         _tempUserDataDir = Path.Combine(Path.GetTempPath(), "EdgeTempProfile_" + Guid.NewGuid());
 
@@ -39,12 +40,12 @@ public static class EdgeDevToolsLauncher
         var psi = new ProcessStartInfo
         {
             FileName = edgePath,
-            Arguments = $"--remote-debugging-port={DebugPort} --user-data-dir=\"{_tempUserDataDir}\"",
+            Arguments = $"--remote-debugging-port={DebugPort} --user-data-dir=\"{_tempUserDataDir}\" --disable-features=EdgeLocalModelSupport",
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = false
         };
 
-        Process.Start(psi);
+        return Process.Start(psi);
     }
 
     private static async Task WaitForDevToolsAsync(int timeoutSeconds = 10)

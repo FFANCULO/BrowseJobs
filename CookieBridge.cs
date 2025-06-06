@@ -11,7 +11,7 @@ namespace BrowseJobs;
 
 public static class CookieBridge
 {
-    public static async Task<IWebDriver> LaunchEdgeWithCookiesAsync(string url)
+    public static async Task<IWebDriver> LaunchEdgeWithCookiesAsync(string url, Process? process)
     {
         // Connect to running Edge via DevTools (Edge must be started with --remote-debugging-port)
         var browser = await Puppeteer.ConnectAsync(new ConnectOptions
@@ -26,7 +26,19 @@ public static class CookieBridge
         var client = page.Client; // No more Target.CreateCDPSessionAsync()
         dynamic cookieData = await client.SendAsync("Network.getAllCookies") ?? new JsonElement();
 
+        process?.Kill();
+        process?.WaitForExit(TimeSpan.FromMinutes(20));
+        process?.Dispose();
+        process = null;
+
         await browser.CloseAsync();
+        browser.Dispose();
+
+       
+
+        
+
+
 
         //// Launch Selenium EdgeDriver
         //var options = new EdgeOptions();
@@ -36,7 +48,7 @@ public static class CookieBridge
         //options.AddArgument("--disable-blink-features=AutomationControlled");
         //options.AddExcludedArgument("enable-automation");
 
-        var driver = LaunchIsolatedEdgeDriver();
+        var (driver, service) = LaunchIsolatedEdgeDriver();
         await driver.Navigate().GoToUrlAsync(url); // Navigate first to set domain context
 
         // Inject cookies
@@ -49,7 +61,6 @@ public static class CookieBridge
     private static void InjectCookies(dynamic cookieData, IWebDriver driver)
     {
         foreach (var cookie in cookieData.cookies)
-        {
             try
             {
                 var seleniumCookie = new Cookie(
@@ -58,7 +69,7 @@ public static class CookieBridge
                     (string)cookie.domain?.TrimStart('.')!,
                     (string)cookie.path,
                     cookie.expires != null
-                        ? (DateTime?)DateTimeOffset.FromUnixTimeSeconds((long)cookie.expires).UtcDateTime
+                        ? DateTimeOffset.FromUnixTimeSeconds((long)cookie.expires).UtcDateTime
                         : null,
                     (bool?)cookie.secure ?? false,
                     (bool?)cookie.httpOnly ?? false,
@@ -70,54 +81,50 @@ public static class CookieBridge
             {
                 Console.WriteLine($"[!] Skipping cookie {cookie.name}: {ex.Message}");
             }
-        }
     }
 
-    public static IWebDriver LaunchIsolatedEdgeDriver(int maxRetries = 3, bool deleteUserDirAfterUse = false)
+    public static (IWebDriver Driver, EdgeDriverService Service) LaunchIsolatedEdgeDriver(bool cleanUpOnExit = true)
     {
-        for (int attempt = 1; attempt <= maxRetries; attempt++)
-        {
-            string tempUserDataDir = Path.Combine(Path.GetTempPath(), $"EdgeProfile_{Guid.NewGuid()}");
-            Directory.CreateDirectory(tempUserDataDir);
+        
+        string tempUserDataDir = Path.Combine(Path.GetTempPath(), "EdgeTemp_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempUserDataDir);
 
-            try
+
+        var options = new EdgeOptions();
+        options.AddArgument("--disable-features=EdgeLocalModelSupport");
+
+        options.AddArgument($"--user-data-dir={tempUserDataDir}");
+        options.AddArgument("--profile-directory=Default");
+        options.AddArgument("--no-sandbox");
+        options.AddArgument("--disable-dev-shm-usage");
+        options.AddArgument("--disable-gpu");
+        options.AddArgument("--window-size=1920,1080");
+        options.AddArgument("--disable-blink-features=AutomationControlled");
+        options.AddExcludedArgument("enable-automation");
+        options.AddAdditionalOption("useAutomationExtension", false);
+
+        var service = EdgeDriverService.CreateDefaultService();
+        service.HideCommandPromptWindow = true;
+
+        IWebDriver driver = new EdgeDriver(options);
+        Console.WriteLine($"[+] Edge launched with temp profile: {tempUserDataDir}");
+
+        if (cleanUpOnExit)
+            AppDomain.CurrentDomain.ProcessExit += (_, __) =>
             {
-                var options = new EdgeOptions();
-                options.AddArgument($"--user-data-dir={tempUserDataDir}");
-                options.AddArgument("--profile-directory=Default");
-                options.AddArgument("--no-sandbox");
-                options.AddArgument("--disable-dev-shm-usage");
-                options.AddArgument("--disable-gpu");
-                options.AddArgument("--window-size=1920,1080");
-                options.AddArgument("--disable-blink-features=AutomationControlled");
-                options.AddExcludedArgument("enable-automation");
-                options.AddAdditionalOption("useAutomationExtension", false);
-
-                Console.WriteLine($"[+] Launching Edge with isolated profile at: {tempUserDataDir}");
-                var driver = new EdgeDriver(options);
-
-                if (deleteUserDirAfterUse)
+                try
                 {
-                    AppDomain.CurrentDomain.ProcessExit += (_, __) =>
-                    {
-                        try { Directory.Delete(tempUserDataDir, true); }
-                        catch { /* ignored */ }
-                    };
+                    driver.Quit();
+                    service.Dispose();
+                    Directory.Delete(tempUserDataDir, true);
+                    Console.WriteLine($"[-] Cleaned up Edge temp profile at: {tempUserDataDir}");
                 }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[!] Cleanup failed: {ex.Message}");
+                }
+            };
 
-                return driver;
-            }
-            catch (WebDriverException ex)
-            {
-                Console.WriteLine($"[!] Attempt {attempt}: Failed to start EdgeDriver. {ex.Message}");
-
-                try { Directory.Delete(tempUserDataDir, true); } catch { /* ignored */ }
-
-                if (attempt == maxRetries)
-                    throw new InvalidOperationException("All EdgeDriver launch attempts failed.", ex);
-            }
-        }
-
-        throw new InvalidOperationException("Unreachable code hit during EdgeDriver launch.");
+        return (driver, service);
     }
 }
