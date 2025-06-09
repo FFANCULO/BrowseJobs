@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -98,8 +100,28 @@ public class ResumeBuilder
 
         var response = await _apiClient.CallApiAsync(prompt);
         try
+
         {
-            _keywords = JsonConvert.DeserializeObject<List<string>>(response) ?? new List<string>();
+           
+
+            // Step 1: Parse the outer JSON dynamically
+            dynamic? outer = JsonConvert.DeserializeObject<ExpandoObject>(response);
+
+            // Step 2: Grab the inner JSON string inside content
+            string innerJson = outer?.choices[0].message.content ?? String.Empty;
+
+            // Step 3: Parse that inner JSON string (which is itself a JSON object)
+            dynamic? inner = JsonConvert.DeserializeObject<ExpandoObject>(innerJson);
+
+            StringBuilder builder = new StringBuilder();
+            var keywords = (List<object>)inner?.keywords! ?? new List<object>();
+            List<string> kerds = keywords.Select(k => k.ToString() ?? "").ToList();
+            builder.AppendJoin(" ", keywords);
+            // Step 4: Access the keywords list
+            
+            Console.WriteLine($"- {builder}");
+
+            _keywords = kerds;
         }
         catch (Exception)
         {
@@ -163,55 +185,6 @@ public class ResumeBuilder
 }
 
 // Helper class using the Builder
-
-internal class Program7
-{
-    private static async Task Main7(string[] args)
-    {
-        try
-        {
-            // Configure API client
-            var apiKey = "your_grok_api_key_here"; // Replace with your xAI Grok API key
-            IGrokApiClient apiClient = new GrokApiClient(apiKey);
-
-            // Example inputs
-            var jobRequirements = @"
-Job Title: Software Engineer
-Responsibilities: Develop web applications using Python, Django, and JavaScript. Collaborate with cross-functional teams to design APIs. Ensure code quality through unit testing and code reviews.
-Requirements: Bachelor’s degree in Computer Science, 3+ years of experience with Python and Django, proficiency in JavaScript, and strong problem-solving skills.
-";
-            var resumeFilePath = "resume.txt"; // Ensure this file exists or update path
-            var outputFilePath = "modified_resume.txt";
-
-            // Create a sample resume file for demonstration (remove in production)
-            await File.WriteAllTextAsync(resumeFilePath, @"
-Name: John Doe
-Contact: johndoe@email.com | 555-123-4567 | New York, NY
-Summary: Experienced developer with a passion for building applications.
-Experience:
-  Developer, XYZ Corp, Jan 2020 - Present
-  - Built web tools using Python and Flask.
-  - Worked with teams to improve backend systems.
-Education:
-  B.S. in Computer Science, NYU, 2019
-Skills: Python, Flask, SQL, teamwork
-");
-
-            // Call the helper with the Builder
-            var modifiedResume =
-                await ResumeModifierHelper.ModifyResumeForJob(apiClient, jobRequirements, resumeFilePath,
-                    outputFilePath);
-
-            // Display result
-            Console.WriteLine("\nModified Resume:\n");
-            Console.WriteLine(modifiedResume);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-        }
-    }
-}
 
 /*
  * Notes for ATS Compliance:

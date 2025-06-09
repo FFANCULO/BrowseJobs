@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using OpenQA.Selenium;
+using System.Text;
 using OpenQA.Selenium.Edge;
 
 namespace BrowseJobs;
@@ -12,66 +12,75 @@ public static class EdgeDriverFactory
     {
         var extensionDir = CreateProxyAuthExtension(proxyHost, proxyPort, proxyUser, proxyPass);
 
-        var proxy = new Proxy
-        {
-            HttpProxy = $"{proxyHost}:{proxyPort}",
-            SslProxy = $"{proxyHost}:{proxyPort}",
-            Kind = ProxyKind.Manual,
-            IsAutoDetect = false
-        };
-
-        var options = new EdgeOptions
-        {
-            Proxy = proxy
-        };
-
-
-        options.AddArgument("--disable-blink-features=AutomationControlled");
+        var options = new EdgeOptions();
+        //options.AddArgument("--disable-blink-features=AutomationControlled");
+        //options.AddArgument($"--disable-extensions-except={extensionDir}");
         options.AddArgument($"--load-extension={extensionDir}");
+        // options.AddExcludedArgument("enable-automation");
 
-        return new EdgeDriver(options);
+        var service = EdgeDriverService.CreateDefaultService();
+        service.HideCommandPromptWindow = true;
+
+        return new EdgeDriver(service, options);
     }
 
-    private static string CreateProxyAuthExtension(string host, int port, string user, string pass)
+    public static string CreateProxyAuthExtension(string host, int port, string user, string pass)
     {
         var dir = Path.Combine(Path.GetTempPath(), "edge_proxy_auth_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
 
-        var manifest = @"{
-  ""version"": ""1.0.0"",
-  ""manifest_version"": 2,
-  ""name"": ""Edge Proxy Auth"",
-  ""permissions"": [""proxy"", ""tabs"", ""unlimitedStorage"", ""storage"", ""<all_urls>"", ""webRequest"", ""webRequestBlocking""],
-  ""background"": {
-    ""scripts"": [""background.js""]
-  }
-}";
-        var background = $@"
-var config = {{
-    mode: ""fixed_servers"",
-    rules: {{
-        singleProxy: {{
-            scheme: ""http"",
-            host: ""{host}"",
-            port: {port}
-        }},
-        bypassList: [""localhost""]
-    }}
-}};
-chrome.proxy.settings.set({{value: config, scope: ""regular""}}, function() {{}});
+        // Build manifest.json dynamically (static content)
+        var manifestBuilder = new StringBuilder();
+        manifestBuilder.AppendLine("{");
+        manifestBuilder.AppendLine(@"  ""version"": ""1.0.0"",");
+        manifestBuilder.AppendLine(@"  ""manifest_version"": 2,");
+        manifestBuilder.AppendLine(@"  ""name"": ""Edge Proxy Auth"",");
+        manifestBuilder.AppendLine(@"  ""permissions"": [");
+        manifestBuilder.AppendLine(@"    ""proxy"",");
+        manifestBuilder.AppendLine(@"    ""tabs"",");
+        manifestBuilder.AppendLine(@"    ""unlimitedStorage"",");
+        manifestBuilder.AppendLine(@"    ""storage"",");
+        manifestBuilder.AppendLine(@"    ""<all_urls>"",");
+        manifestBuilder.AppendLine(@"    ""webRequest"",");
+        manifestBuilder.AppendLine(@"    ""webRequestBlocking""");
+        manifestBuilder.AppendLine(@"  ],");
+        manifestBuilder.AppendLine(@"  ""background"": {");
+        manifestBuilder.AppendLine(@"    ""scripts"": [""background.js""]");
+        manifestBuilder.AppendLine("  }");
+        manifestBuilder.AppendLine("}");
 
-chrome.webRequest.onAuthRequired.addListener(
-    function(details, callbackFn) {{
-        callbackFn({{
-            authCredentials: {{username: ""{user}"", password: ""{pass}""}}
-        }});
-    }},
-    {{urls: [""<all_urls>""]}},
-    ['blocking']
-);";
+        // Build background.js dynamically (injecting proxy info)
+        var backgroundBuilder = new StringBuilder();
+        backgroundBuilder.AppendLine("var config = {");
+        backgroundBuilder.AppendLine("  mode: 'fixed_servers',");
+        backgroundBuilder.AppendLine("  rules: {");
+        backgroundBuilder.AppendLine("    singleProxy: {");
+        backgroundBuilder.AppendLine("      scheme: 'http',");
+        backgroundBuilder.AppendLine($"      host: '{host}',");
+        backgroundBuilder.AppendLine($"      port: {port}");
+        backgroundBuilder.AppendLine("    },");
+        backgroundBuilder.AppendLine("    bypassList: ['localhost']");
+        backgroundBuilder.AppendLine("  }");
+        backgroundBuilder.AppendLine("};");
+        backgroundBuilder.AppendLine();
+        backgroundBuilder.AppendLine("chrome.proxy.settings.set({ value: config, scope: 'regular' }, function() {});");
+        backgroundBuilder.AppendLine();
+        backgroundBuilder.AppendLine("chrome.webRequest.onAuthRequired.addListener(");
+        backgroundBuilder.AppendLine("  function(details, callbackFn) {");
+        backgroundBuilder.AppendLine("    callbackFn({");
+        backgroundBuilder.AppendLine("      authCredentials: {");
+        backgroundBuilder.AppendLine($"        username: '{user}',");
+        backgroundBuilder.AppendLine($"        password: '{pass}'");
+        backgroundBuilder.AppendLine("      }");
+        backgroundBuilder.AppendLine("    });");
+        backgroundBuilder.AppendLine("  },");
+        backgroundBuilder.AppendLine("  { urls: ['<all_urls>'] },");
+        backgroundBuilder.AppendLine("  ['blocking']");
+        backgroundBuilder.AppendLine(");");
 
-        File.WriteAllText(Path.Combine(dir, "manifest.json"), manifest);
-        File.WriteAllText(Path.Combine(dir, "background.js"), background);
+        // Write both files to disk
+        File.WriteAllText(Path.Combine(dir, "manifest.json"), manifestBuilder.ToString());
+        File.WriteAllText(Path.Combine(dir, "background.js"), backgroundBuilder.ToString());
 
         return dir;
     }

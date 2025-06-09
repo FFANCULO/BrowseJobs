@@ -1,23 +1,27 @@
-using OpenQA.Selenium;
 using System;
-using System.Linq;
+using System.Threading;
+using OpenQA.Selenium;
+using OpenQA.Selenium.Support.UI;
 
-namespace BrowseJobs
+namespace BrowseJobs;
+
+public static class SvgClickHelper
 {
-    public static class SvgClickHelper
+    public static void ClickSvgAncestorButton2(IWebDriver driver, string pageNumber = "1",
+        string svgSelector = "svg.text-cyan-700")
     {
-        public static void ClickSvgAncestorButton2(IWebDriver driver, string pageNumber = "1", string svgSelector = "svg.text-cyan-700")
+        try
         {
-            try
-            {
-                // Wait for SVG to be present (up to 15 seconds)
-                var wait = new OpenQA.Selenium.Support.UI.WebDriverWait(driver, TimeSpan.FromSeconds(15));
-                var svg = wait.Until(d => d.FindElement(By.CssSelector(svgSelector)));
-                Console.WriteLine(
-                    $"Found SVG: {svg?.GetAttribute("outerHTML")?.Substring(0, Math.Min(100, svg.GetAttribute("outerHTML")?.Length ?? 0)) ?? "SVG attributes not accessible"}");
+            // Wait for SVG to be present (up to 15 seconds)
+            var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(15));
+            var svg = wait.Until(d => d.FindElement(By.CssSelector(svgSelector)));
+            Console.WriteLine(
+                $"Found SVG: {svg?.GetAttribute("outerHTML")?.Substring(0, Math.Min(100, svg.GetAttribute("outerHTML")?.Length ?? 0)) ?? "SVG attributes not accessible"}");
 
-                // Inject jQuery if not present
-                ((IJavaScriptExecutor)driver)?.ExecuteScript(@"
+            Thread.CurrentThread.HumanPause();
+
+            // Inject jQuery if not present
+            ((IJavaScriptExecutor)driver)?.ExecuteScript(@"
             if (typeof jQuery === 'undefined') {
                 var script = document.createElement('script');
                 script.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
@@ -26,25 +30,26 @@ namespace BrowseJobs
             }
         ");
 
-                // Wait for jQuery to load (if injected)
-                wait.Until(d => (bool)((IJavaScriptExecutor)d).ExecuteScript("return typeof jQuery !== 'undefined';"));
+            // Wait for jQuery to load (if injected)
+            wait.Until(d => (bool)(((IJavaScriptExecutor)d).ExecuteScript("return typeof jQuery !== 'undefined';") ??
+                                   new ArgumentException("Fucked")));
 
-                // Find pagination text before click
-                //var paginationElementBefore = wait.Until(d =>
-                //    d.FindElement(By.XPath($"//section[@aria-label='Page {pageNumber} of 10']")))
-                var paginationElementBefore = wait.Until(d =>
-                    d.FindElement(By.XPath($"//section[contains(@aria-label, 'Page {pageNumber} of')]")));
+            // Find pagination text before click
+            //var paginationElementBefore = wait.Until(d =>
+            //    d.FindElement(By.XPath($"//section[@aria-label='Page {pageNumber} of 10']")))
+            var paginationElementBefore = wait.Until(d =>
+                d.FindElement(By.XPath($"//section[contains(@aria-label, 'Page {pageNumber} of')]")));
 
-                ;
-                string paginationTextBefore = paginationElementBefore != null
-                    ? ((IJavaScriptExecutor)driver)
-                      ?.ExecuteScript("return jQuery(arguments[0]).text();", paginationElementBefore)?.ToString() ??
-                      "Pagination text before click not found"
-                    : "Pagination text before click not found";
-                Console.WriteLine($"Pagination text before click: {paginationTextBefore}");
+            ;
+            var paginationTextBefore = ((IJavaScriptExecutor)driver)
+                                       ?.ExecuteScript("return jQuery(arguments[0]).text();", paginationElementBefore)
+                                       ?.ToString() ??
+                                       "Pagination text before click not found";
 
-                // Use jQuery to find and trigger the 'next' action
-                string result = ((IJavaScriptExecutor)driver)?.ExecuteScript(@"
+            Console.WriteLine($"Pagination text before click: {paginationTextBefore}");
+
+            // Use jQuery to find and trigger the 'next' action
+            var result = ((IJavaScriptExecutor)driver)?.ExecuteScript(@"
             var $svg = jQuery(arguments[0]);
             if ($svg.length === 0) return 'SVG not found';
 
@@ -99,45 +104,47 @@ namespace BrowseJobs
             return 'Clicked next button but no onclick or listener found: ' + buttonHtml;
         ", svgSelector)?.ToString() ?? "jQuery injection failed";
 
-                Console.WriteLine($"jQuery result: {result}");
+            Console.WriteLine($"jQuery result: {result}");
 
-                // Wait for pagination to update
-                var paginationElementAfter =
-                    wait.Until(d => d.FindElement(By.XPath("//section[contains(@aria-label, 'Page')]")));
-                string paginationTextAfter = paginationElementAfter != null
-                    ? ((IJavaScriptExecutor)driver)
-                      ?.ExecuteScript("return jQuery(arguments[0]).text();", paginationElementAfter)?.ToString() ??
-                      "Pagination text after click not found"
-                    : "Pagination text after click not found";
-                Console.WriteLine($"Pagination text after click: {paginationTextAfter}");
+            Thread.CurrentThread.HumanPause();
 
-                // Log pagination element details
-                string paginationDetails = paginationElementAfter != null
-                    ? ((IJavaScriptExecutor)driver)?.ExecuteScript(
-                          "return arguments[0].outerHTML.substring(0, 100);", paginationElementAfter)?.ToString() ??
-                      "Pagination element details unavailable"
-                    : "Pagination element not found";
-                Console.WriteLine($"Pagination element details: {paginationDetails}");
 
-                // Wait for pagination to update
-                wait.Until(d =>
-                {
-                    var nextPage = int.Parse(pageNumber) + 1;
-                    return d.FindElements(By.XPath($"//section[contains(@aria-label, 'Page {nextPage}')]")).Count > 0 ||
-                           true;
-                });
-            }
-            catch (NoSuchElementException ex)
+            // Wait for pagination to update
+            var paginationElementAfter =
+                wait.Until(d => d.FindElement(By.XPath("//section[contains(@aria-label, 'Page')]")));
+            var paginationTextAfter = ((IJavaScriptExecutor)driver)
+                                      ?.ExecuteScript("return jQuery(arguments[0]).text();", paginationElementAfter)
+                                      ?.ToString() ??
+                                      "Pagination text after click not found";
+
+            Console.WriteLine($"Pagination text after click: {paginationTextAfter}");
+
+            // Log pagination element details
+            var paginationDetails = ((IJavaScriptExecutor)driver)?.ExecuteScript(
+                                        "return arguments[0].outerHTML.substring(0, 100);", paginationElementAfter)
+                                    ?.ToString() ??
+                                    "Pagination element details unavailable";
+
+            Console.WriteLine($"Pagination element details: {paginationDetails}");
+
+            Thread.CurrentThread.HumanPause();
+
+            // Wait for pagination to update
+            wait.Until(d =>
             {
-                Console.WriteLine($"NO MORE SHIT TO PROCESS {ex.Message}");
-            }
-            catch (OpenQA.Selenium.WebDriverException ex)
-            {
-                Console.WriteLine($"Error: Failed to execute jQuery for selector '{svgSelector}'. {ex.Message}");
-                throw;
-            }
+                var nextPage = int.Parse(pageNumber) + 1;
+                return d.FindElements(By.XPath($"//section[contains(@aria-label, 'Page {nextPage}')]")).Count > 0 ||
+                       true;
+            });
+        }
+        catch (NoSuchElementException ex)
+        {
+            Console.WriteLine($"NO MORE SHIT TO PROCESS {ex.Message}");
+        }
+        catch (WebDriverException ex)
+        {
+            Console.WriteLine($"Error: Failed to execute jQuery for selector '{svgSelector}'. {ex.Message}");
+            throw;
         }
     }
-
-
 }

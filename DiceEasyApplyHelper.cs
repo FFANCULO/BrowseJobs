@@ -65,6 +65,7 @@ public class DiceEasyApplyHelper
             try
             {
                 applyButton.Click();
+                Thread.CurrentThread.HumanPause();
                 Console.WriteLine("Successfully clicked the Easy Apply button.");
             }
             catch (ElementClickInterceptedException)
@@ -73,6 +74,7 @@ public class DiceEasyApplyHelper
                 try
                 {
                     ((IJavaScriptExecutor)Driver).ExecuteScript("arguments[0].click();", applyButton);
+                    Thread.CurrentThread.HumanPause();
                     Console.WriteLine("Clicked the Easy Apply button using JavaScript fallback.");
                 }
                 catch (Exception ex)
@@ -83,21 +85,20 @@ public class DiceEasyApplyHelper
             }
 
             // Wait briefly to observe the result
-            Thread.Sleep(2000);
 
     
             var webButtonHelper = new WebButtonHelper(Driver);
             webButtonHelper.ClickNextButton();
+            Thread.CurrentThread.HumanPause();
 
             File.WriteAllText("page_dump1.html", Driver.PageSource);
 
-            Thread.Sleep(2000);
 
 
             var webButtonHelper2 = new WebButtonHelper2(Driver);
             webButtonHelper2.ClickSubmitButton();
+            Thread.CurrentThread.HumanPause();
 
-            Thread.Sleep(2000);
 
 
             // Check for potential reCAPTCHA

@@ -2,6 +2,8 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Edge;
@@ -26,7 +28,7 @@ public static class CookieBridge
         var client = page.Client; // No more Target.CreateCDPSessionAsync()
         dynamic cookieData = await client.SendAsync("Network.getAllCookies") ?? new JsonElement();
 
-        process?.Kill();
+        process?.Kill(true);
         process?.WaitForExit(TimeSpan.FromMinutes(20));
         process?.Dispose();
         process = null;
@@ -34,8 +36,22 @@ public static class CookieBridge
         await browser.CloseAsync();
         browser.Dispose();
 
-       
 
+        if (cookieData is JsonElement element && element.TryGetProperty("cookies", out var cookies))
+        {
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            };
+
+            // Serialize the "cookies" property to JSON
+            string json = JsonSerializer.Serialize(cookies, options);
+            
+        }
+
+
+        return null;
         
 
 
@@ -85,7 +101,22 @@ public static class CookieBridge
 
     public static (IWebDriver Driver, EdgeDriverService Service) LaunchIsolatedEdgeDriver(bool cleanUpOnExit = true)
     {
-        
+        foreach (var proc in Process.GetProcessesByName("msedge"))
+        {
+            proc.Kill(true);
+            proc.WaitForExit(TimeSpan.FromSeconds(20));
+        }
+            
+        foreach (var proc in Process.GetProcessesByName("msedgedriver"))
+        {
+            proc.Kill(true);
+            proc.WaitForExit(TimeSpan.FromSeconds(20));
+        }
+
+        Thread.Sleep(2000); // allow OS to settle
+
+        return (null, null);
+
         string tempUserDataDir = Path.Combine(Path.GetTempPath(), "EdgeTemp_" + Guid.NewGuid());
         Directory.CreateDirectory(tempUserDataDir);
 

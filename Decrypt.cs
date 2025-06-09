@@ -71,7 +71,7 @@ class Prog2
                     // GET Job Description verbiage 
                     // Use Grok and write Cover Letter
 
-                    Thread.Sleep(TimeSpan.FromSeconds(2));
+                    Thread.CurrentThread.HumanPause();
 
                     EasyApplyProcess(driver);
 
@@ -79,6 +79,7 @@ class Prog2
                     try
                     {
                         ((IJavaScriptExecutor)driver).ExecuteScript("window.open('', '_self').close();");
+                        Thread.CurrentThread.HumanPause();
                         ((IJavaScriptExecutor)driver).ExecuteScript("window.open('', '_self').close();");
                         Console.WriteLine("✅ Tab closed via JS");
                     }
@@ -91,12 +92,12 @@ class Prog2
                 }
             }
 
-            Thread.Sleep(TimeSpan.FromSeconds(3));
+            Thread.CurrentThread.HumanPause();
 
             SvgClickHelper.ClickSvgAncestorButton2(driver, (++pageNumber).ToString());
 
+            Thread.CurrentThread.HumanPause();
 
-            Thread.Sleep(TimeSpan.FromSeconds(3));
 
             goto next;
         }
@@ -113,24 +114,79 @@ class Prog2
     private static void EasyApplyProcess(IWebDriver driver)
     {
         // Begin Shizer
-        var wait1 = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
+        //var wait1 = new WebDriverWait(driver, TimeSpan.FromSeconds(60));
 
-        // Click the toggle button
-        var toggleButton = wait1.Until(d => d.FindElement(By.Id("descriptionToggle")));
-        toggleButton.Click();
+        //// Click the toggle button
+        //var toggleButton = wait1.Until(d => d.FindElement(By.Id("descriptionToggle")));
+        //toggleButton.Click();
 
-        // Wait for the description container to load
-        var desc = wait1.Until(d => d.FindElement(By.CssSelector("div[data-testid='jobDescriptionHtml']")));
+        //// Wait for the description container to load
+        //var desc = wait1.Until(d => d.FindElement(By.CssSelector("div[data-testid='jobDescriptionHtml']")));
 
-        // Extract visible plain text
+        //// Extract visible plain text
+        //string jobText = desc.Text;
+        //Console.WriteLine("----- JOB DESCRIPTION -----\n");
+        //Console.WriteLine(jobText);
+
+        //IGrokApiClient apiClient = new GrokApiClient();
+        //ResumeBuilder builder = new ResumeBuilder(apiClient);
+        //builder.WithJobRequirements(jobText);
+        //var resumeBuilder = builder.ExtractKeywordsAsync().Result;
+
+        var wait1 = new WebDriverWait(driver, TimeSpan.FromSeconds(60));
+
+        // ✅ Wait for the toggle button to be present, visible, and enabled
+        var toggleButton = wait1.Until(driver =>
+        {
+            try
+            {
+                var el = driver.FindElement(By.Id("descriptionToggle"));
+                return (el.Displayed && el.Enabled) ? el : null;
+            }
+            catch (NoSuchElementException)
+            {
+                return null;
+            }
+        });
+
+        // ✅ Try native click first, fallback to JS if intercepted
+        try
+        {
+            toggleButton.Click();
+        }
+        catch (WebDriverException)
+        {
+            ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].click();", toggleButton);
+        }
+
+        // ✅ Wait for the full job description container to load
+        var desc = wait1.Until(d =>
+        {
+            try
+            {
+                var el = d.FindElement(By.CssSelector("div[data-testid='jobDescriptionHtml']"));
+                return (el.Displayed && el.Enabled) ? el : null;
+            }
+            catch (NoSuchElementException)
+            {
+                return null;
+            }
+        });
+
+        // ✅ Extract visible plain text
         string jobText = desc.Text;
         Console.WriteLine("----- JOB DESCRIPTION -----\n");
         Console.WriteLine(jobText);
 
+        // ✅ Pass to Grok for resume generation
         IGrokApiClient apiClient = new GrokApiClient();
-        ResumeBuilder builder = new ResumeBuilder(apiClient);
-        builder.WithJobRequirements(jobText);
+        ResumeBuilder builder = new ResumeBuilder(apiClient)
+            .WithJobRequirements(jobText);
+
         var resumeBuilder = builder.ExtractKeywordsAsync().Result;
+        // Use resumeBuilder to generate or customize a resume
+
+        // --- END Shizer ---
 
 
         // END Shizer
@@ -165,38 +221,27 @@ class Prog2
         {
             // Set up logger
             var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-            var logger = loggerFactory.CreateLogger<Prog2>();
+            var logger = loggerFactory.CreateLogger<string>();
 
             // Set up your ChromeDriver instance
             //var options = new ChromeOptions();
             //options.AddArgument("--headless");
-            var proxy = new Proxy
-            {
-                Kind = ProxyKind.Manual,
-                IsAutoDetect = false,
-                HttpProxy = "198.23.239.134:6540",
-                SslProxy = "198.23.239.134:6540"
-            };
 
-            var options = new EdgeOptions() { Proxy = proxy };
-            string tempUserDataDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-            options.AddArgument($"--user-data-dir={tempUserDataDir}");
-
-            // options.AddArgument("user-data-dir=C:\\Users\\peter\\AppData\\Local\\Microsoft\\Edge\\User Data");
+            var options = new EdgeOptions();
+            options.AddArgument("user-data-dir=C:\\Users\\peter\\AppData\\Local\\Microsoft\\Edge\\User Data");
             options.AddArgument("profile-directory=Profile 2");
 
-
             // PCJ
-            options.AddArgument("--no-sandbox");
-            options.AddArgument("--disable-dev-shm-usage");
-            options.AddArgument("--disable-gpu");
-            options.AddArgument("--window-size=1920,1080");
+            //options.AddArgument("--no-sandbox");
+            //options.AddArgument("--disable-dev-shm-usage");
+            //options.AddArgument("--disable-gpu");
+            //options.AddArgument("--window-size=1920,1080");
             options.AddArgument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
 
             //// Additional options for better compatibility
-            options.AddArgument("--disable-blink-features=AutomationControlled");
-            options.AddExcludedArgument("enable-automation");
-            options.AddAdditionalOption("useAutomationExtension", false);
+            //options.AddArgument("--disable-blink-features=AutomationControlled");
+            //options.AddExcludedArgument("enable-automation");
+            //options.AddAdditionalOption("useAutomationExtension", false);
 
 
             IWebDriver driver = new EdgeDriver(options);
@@ -207,13 +252,19 @@ class Prog2
             var searchBox = wait.Until(d => d.FindElement(By.Name("q")));
 
             searchBox.Clear();
+            Thread.CurrentThread.HumanPause();
             searchBox.SendKeys("Python developer");
+            Thread.CurrentThread.HumanPause();
+
+
 
             wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
             var locationBox = wait.Until(d => d.FindElement(By.Name("location")));
 
             locationBox.Clear();
+            Thread.CurrentThread.HumanPause();
             locationBox.SendKeys("New York, NY, USA");
+            Thread.CurrentThread.HumanPause();
 
             // Wait for button with inner text 'Search'
             wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
@@ -222,6 +273,7 @@ class Prog2
             );
 
             searchButton.Click();
+            Thread.CurrentThread.HumanPause();
 
 
             DoSomeStuff(driver);
@@ -237,3 +289,8 @@ class Prog2
         }
     }
 }
+
+/*
+   taskkill /F /IM msedge.exe
+   taskkill /F /IM msedgedriver.exe   
+ */

@@ -17,12 +17,10 @@ class XAi
             .AddJsonFile("appsettings.json")
             .Build();
 
-        string apiKeyConfig = config["MySettings:ApiKey"] ?? throw new InvalidOperationException("MySettings:ApiKey cannot be found");
-        Console.WriteLine($"API Key: {apiKeyConfig}");
+        string apiKey = config["MySettings:ApiKey"] ?? throw new InvalidOperationException("MySettings:ApiKey cannot be found");
+        Console.WriteLine($"API Key: {apiKey}");
 
 
-
-        var apiKey = "xai-Spjy8ZfUf3RKB9TaIfu1kOD0se41eUGlZOvH5q3I3eoeFLHpvqBUDBlH0D2yhAb1QtjXazKn6BiorLar";
 
         var httpClient = new HttpClient();
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
