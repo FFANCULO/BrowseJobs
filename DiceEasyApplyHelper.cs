@@ -64,9 +64,13 @@ public class DiceEasyApplyHelper
             // Attempt to click the Easy Apply button
             try
             {
+                var applyButtonText = applyButton.Text;
+
                 applyButton.Click();
                 Thread.CurrentThread.HumanPause();
-                Console.WriteLine("Successfully clicked the Easy Apply button.");
+                Console.WriteLine($"{applyButtonText} Successfully clicked the Easy Apply button.");
+                if (applyButtonText.Contains("Submitted"))
+                    return true;
             }
             catch (ElementClickInterceptedException)
             {

@@ -153,6 +153,8 @@ class Prog2
         try
         {
             toggleButton.Click();
+            Thread.CurrentThread.HumanPause();
+
         }
         catch (WebDriverException)
         {
@@ -179,11 +181,14 @@ class Prog2
         Console.WriteLine(jobText);
 
         // ✅ Pass to Grok for resume generation
-        IGrokApiClient apiClient = new GrokApiClient();
-        ResumeBuilder builder = new ResumeBuilder(apiClient)
-            .WithJobRequirements(jobText);
+        if (false)
+        {
+            IGrokApiClient apiClient = new GrokApiClient();
+            ResumeBuilder builder = new ResumeBuilder(apiClient)
+                .WithJobRequirements(jobText);
 
-        var resumeBuilder = builder.ExtractKeywordsAsync().Result;
+            var resumeBuilder = builder.ExtractKeywordsAsync().Result;
+        }
         // Use resumeBuilder to generate or customize a resume
 
         // --- END Shizer ---
@@ -253,7 +258,7 @@ class Prog2
 
             searchBox.Clear();
             Thread.CurrentThread.HumanPause();
-            searchBox.SendKeys("Python developer");
+            searchBox.SendKeys("AWS");
             Thread.CurrentThread.HumanPause();
 
 
@@ -261,10 +266,10 @@ class Prog2
             wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
             var locationBox = wait.Until(d => d.FindElement(By.Name("location")));
 
-            locationBox.Clear();
-            Thread.CurrentThread.HumanPause();
-            locationBox.SendKeys("New York, NY, USA");
-            Thread.CurrentThread.HumanPause();
+            //locationBox.Clear();
+            //Thread.CurrentThread.HumanPause();
+            //locationBox.SendKeys("New York, NY, USA");
+            //Thread.CurrentThread.HumanPause();
 
             // Wait for button with inner text 'Search'
             wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
